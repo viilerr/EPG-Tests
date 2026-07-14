@@ -3,13 +3,11 @@
 addpath(genpath('EPGX_functions'))
 
 %%% Water excahnge model. For interpretation, compartment A is the larger
-%%% (slow relaxing) and B is the small, fast relaxing compartment (myelin
-%%% water?)
+
 f = 0.20; %<--- pool b fraction (this is fast relaxing pool) i.e.  myelin water fraction
-fka = 2e-2; % This is ka->b (i.e. Ksf in mcdespot; fb*kb = fa*ka, so kb = (1-fb)*ka/fb -- this is 1/tau
+fka = 2e-2;
 T1 = [1000 500];
 T2 = [100 20];
-
 
 %%% Pulse sequence parameters
 ESP=5;
@@ -17,20 +15,12 @@ a0 = deg2rad([90 180*ones(1,50)]);
 Npulse = length(a0);
 Necho = Npulse-1;
 
-
-
-
 %%% Analyse the echoes using NNLS (Whittall KP, MacKay AL. Quantitative
-%%% interpretation of NMR relaxation data. J. Magn. Reson. 1989;84:134?152.)
 nt2 = 2001;
 t2s = linspace(10,120,nt2);
 r2s = 1./t2s;
 tt = ESP*(1:Necho);
 S =exp(-r2s(:)*tt);
-
-
-
-%% 1. Look at estimated T2s/fraction as a function of B1 offset and exchange rate
 
 nk=32;ntx=32;
 delta = 0;
@@ -52,9 +42,6 @@ for ii=1:nk
 
 end
 
-
-
-
 %% Now examine effect of delta and kx for B1scaling=1
 
 nk=32;nd=32;
@@ -67,7 +54,6 @@ t2s_2 = linspace(10,120,nt2_2);
 r2s_2 = 1./t2s_2;
 tt = ESP*(1:Necho);
 S_2 =exp(-r2s_2(:)*tt);
-
 
 t2app_2 = zeros(nk,nd,2);
 fapp_2 = zeros(nk,nd);
@@ -83,7 +69,6 @@ for ii=1:nk
     end
   
 end
-
 
 
 %% Combined figure
@@ -190,7 +175,7 @@ grid on
 pp.FaceColor = [0.75 0.75 0.];
 pp.EdgeColor = [0 0.5 0.75];
 aa=annotation('arrow',[0.11 0.09],[0.2104 0.1653]);
-colormap(turbo) %<-- https://uk.mathworks.com/matlabcentral/fileexchange/51986-perceptually-uniform-colormaps
+colormap(turbo) 
 pause(0.01)
 
 %
