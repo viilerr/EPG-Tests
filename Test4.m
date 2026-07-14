@@ -4,7 +4,6 @@ clc
 
 addpath(genpath('EPGX_functions'))
 
-
 nrefocus = 25;
 nslice = 1:2:15;
 nn  = length(nslice);
