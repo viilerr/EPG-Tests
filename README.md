@@ -18,7 +18,8 @@ The repository currently includes MATLAB scripts and corresponding PNG outputs f
 
 Files:
 - [Test2.m](Test2.m)
-- [Test2.png](Test2.png)
+
+![Test 2 output](Test2.png)
 
 Purpose:
 - Simulates a multi-echo CPMG experiment for a two-compartment exchange model.
@@ -33,7 +34,8 @@ What it means:
 
 Files:
 - [Test3a.m](Test3a.m)
-- [Test3a.png](Test3a.png)
+
+![Test 3a output](Test3a.png)
 
 Purpose:
 - Compares a standard EPG simulation with an EPG-X magnetization transfer (MT) simulation in a transient spoiled gradient echo sequence.
@@ -48,7 +50,8 @@ What it means:
 
 Files:
 - [Test3b.m](Test3b.m)
-- [Test3b.png](Test3b.png)
+
+![Test 3b output](Test3b.png)
 
 Purpose:
 - Extends the previous MT analysis to a balanced SSFP setting.
@@ -62,7 +65,8 @@ What it means:
 
 Files:
 - [Test4.m](Test4.m)
-- [Test4.png](Test4.png)
+
+![Test 4 output](Test4.png)
 
 Purpose:
 - Uses an experimental inversion-recovery / transient-field-echo-style dataset to compare measured signals with EPG predictions.
