@@ -12,7 +12,6 @@ R2f = 1/45;
 R1obs = 0.5*(R1f + kf + R1b + kb)-0.5*sqrt((R1f + kf + R1b + kb).^2 ...
     -4*(R1f*R1b + R1f*kb + R1b*kf));
 
-
 %%% Flip angle variation
 ss = [0 0 1 1 2 2 3 3 4 4 5 5 6 6 7 7 8 8 9 9 10 10 11 11 12 12 13 13 14 14 15 15]/15;
 ss = [ss fliplr(ss)];
@@ -22,14 +21,13 @@ alphas=deg2rad(sin(alphas*pi/2)*40);
 
 npulse = length(alphas);
 
-%%% B1sqrdtau quoted from scanner
 b1sqrdtau = 54.3 * alphas.^2; % ms uT^2
 G = 15.1; % us
 
 %%% Define a prep pulse and inversion delay
 prep=struct;
 prep.flip=pi;
-prep.B1SqrdTau = 433.3;%<-- from scanner (min dur block pulse is 158)
+prep.B1SqrdTau = 433.3;
 prep.t_delay=0;
 
 %%% Sequences
@@ -52,7 +50,6 @@ phi_bSSFP   = RF_phase_cycle(npulse,'balanced');
 ssfp_mt = ifftshift(size(Fn2,1)*(ifft(ifftshift(Fn2,1),[],1)),1);
 ssfp_nomt = ifftshift(size(Fn1,1)*(ifft(ifftshift(Fn1,1),[],1)),1);
 
-%%
 figure(1)
 clf
 subplot(3,1,1)
@@ -93,8 +90,6 @@ set(gg([2 4 5]),'FontSize',13)
 gg(2).Position = [0.1300    0.0665    0.7750    0.2494];
 gg(4).Position = [0.1300    0.4118    0.7750    0.2134];
 gg(5).Position = [0.1300    0.7114    0.7750    0.2134];
-
-%%% text
 axes(gg(5))
 text(-32,-5,'(a)','fontsize',17,'fontweight','bold')
 text(-32,-60,'(b)','fontsize',17,'fontweight','bold')
@@ -174,7 +169,6 @@ gg(5).Position = [gap*2+ww   0.1100    ww    0.3412];
 gg(7).Position = [gap*2+ww   0.5838    ww    0.3412];
 set(gg([1 3 5 7]),'FontSize',13)
 
-%%% text
 axes(gg(3))
 text(-700,-0.9,'(a)','fontsize',18,'fontweight','bold')
 text(-380,-1.1,'(b)','fontsize',18,'fontweight','bold')
