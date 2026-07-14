@@ -2,12 +2,10 @@
 
 addpath(genpath('EPGX_functions'))
 
-%% Load in data
 % Contains im1 = calibration experiment, a series of echoes made with
 % increasing flip angles with a large gap in between. Fit this to
 % M0sin(alpha*tx) where tx = transmit sensitivity, M0 is effective M0
 % including T2*.
-%
 % im2 is the experimental data from the 'MRF' style experiment
 
 load('test2_expt_data.mat')
@@ -55,11 +53,6 @@ for ii=1:nf
     
 end
 
-
-
-%% Make forward EPG predictions with measured calibration values
-
-%%% Pulse sequence properties - flip angle train
 ss = [0 0 1 1 2 2 3 3 4 4 5 5 6 6 7 7 8 8 9 9 10 10 11 11 12 12 13 13 14 14 15 15];
 ss = [ss fliplr(ss)];
 s0 = zeros([1 16]);
@@ -69,8 +62,7 @@ npulse = length(alphas);
 
 %%% Sequence TR, spoiling, inversion pulse
 TR=12;
-phi_0= [150 117]; %<-- two different spoiling phases
-
+phi_0= [150 117]; 
 prep=struct;
 prep.flip=pi;
 prep.t_delay=0; 
@@ -84,9 +76,6 @@ d{2}=struct;
 d{2}.G = [-5.6 3.5 sqrt(9.6^2+18.9^2)]; % mT/m 
 d{2}.tau = [1.4 8.4 1.1]; %ms
 
-
-
-%%% Choose which lines to take from data
 xlines = 100+(-2:2);
 nx=length(xlines);
 
@@ -103,12 +92,11 @@ for ii=1:2
     b1sf(ii) = mean(tx{ii}(xlines));
 end
 
-%%% Sample properties, measured elsewhere
+
 T1 = [899 1290];
 T2 = [92 92];
 adc = [2.35 1.9]*1e-9;
 
-%%% Single pool EPG simulations
 S = {};%<-- with diffusion
 S0 = {};%<- without diffusion
 for ii=1:2
@@ -121,7 +109,6 @@ for ii=1:2
     end
 end
 
-%% Figure for paper, comparing with and without diffusion
 
 clrs = {[37 209 49]/256,[23 139 234]/256,[1 0 0]};
 
@@ -262,7 +249,6 @@ fprintf(1,'RMSE before = %1.2f percent, after = %1.2f percent \n',...
 
 %% Simultaneous fit for single pool version
 
-%%% FWD model functions
 % 150
 sigfun1s = @(x)(EPG_GRE(b1sf(IX)*alphasc, RF_phase_cycle(npulse,phi_0(1)),...
     TR,x*1e3, T2(IX),'prep',prep,'diff',d{IX},'kmax',30));
