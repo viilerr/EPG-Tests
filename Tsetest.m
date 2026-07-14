@@ -30,10 +30,6 @@ function [F0,Fn,Zn,F] = EPG_TSE(theta,ESP,T1,T2,varargin)
 %               Zn:         full EPG diagram for all longitudinal states
 %               F:          full state matrix. Each column is arranged as
 %                           [F0 F0* Z0 F1 F-1* Z1 F2 F-2* Z2 ...] etc
-%   Shaihan Malik 2017-07-21
-
-
-%% Extra variables
 
 for ii=1:length(varargin)
     
@@ -59,9 +55,7 @@ end
 
 %% Calculation is faster when considering only appropriate EPG orders 
 
-%%% The maximum order varies through the sequence. This can be used to speed up the calculation    
 np = length(theta); % number of pulses, this includes exciatation
-
 % if not defined, assume want max
 if ~exist('kmax','var')
     kmax = 2*(np - 1);  % kmax at last echo time, this is twice # refocusing pulses
