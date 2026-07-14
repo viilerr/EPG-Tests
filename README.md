@@ -1,6 +1,6 @@
 # EPG Tests
 
-This repository contains a small set of MATLAB scripts and generated figures that illustrate several Extended Phase Graph (EPG) simulations and their interpretation. The examples are adapted from the EPG-X framework developed in the repository [EPG-X](https://github.com/mriphysics/EPG-X/tree/master) and are intended as compact, educational test cases for understanding how different pulse sequences and tissue models behave.
+This repository contains a set of MATLAB scripts and generated figures that illustrate several Extended Phase Graph (EPG) simulations and their interpretation. The examples are adapted from the EPG-X framework developed in the repository [EPG-X](https://github.com/mriphysics/EPG-X/tree/master) and are intended as compact, educational test cases for understanding how different pulse sequences and tissue models behave.
 
 ## What this repository contains
 
