@@ -1,51 +1,40 @@
 
 addpath(genpath('EPGX_functions'))
 
-function [F0,Fn,Zn,F] = EPG_TSE(theta,ESP,T1,T2,varargin)
-%   Single pool EPG (classic version) for TSE sequences
-%   [F0,Fn,Zn,F] = EPG_TSE(theta,ESP,T1,T2,varargin)
-%
-%   arguments:
-%               theta:      vector of flip angles (rad) including excitation
-%               ESP:        Echo spacing, ms
-%               T1:         T1, ms
-%               T2:         T2, ms
-%
-%   optional arguments (use string then value as next argument)
-%
-%               kmax:       maximum EPG order to include. Can be used to
-%                           accelerate calculation. 
-%                           Setting kmax=inf ensures ALL pathways are
-%                           computed
-%               diff:       structure with fields:
-%                           G    - Gradient amplitude(s)
-%                           tau  - Gradient durations(s)
-%                           D    - Diffusion coeff m^2/s (i.e. expect 10^-9)
-%
-%               zinit:      User specified initial state of Z0 
-%
-%   Outputs:                
-%               F0:         signal (F0 state) at each echo time
-%               Fn:         full EPG diagram for all transverse states
-%               Zn:         full EPG diagram for all longitudinal states
-%               F:          full state matrix. Each column is arranged as
-%                           [F0 F0* Z0 F1 F-1* Z1 F2 F-2* Z2 ...] etc
+% simulates TSE by tracking how magnetisation moves through different states
+% after RF excitation pulse, 180 deg refocusing pulses, relaxation,
+% gradients and predicts the signal at each echo.
+% F0=MRI signal intensity at every echo
+% Fn=transverse magnetisation states
+% Zn=longitudinal magnetisation states
+% F=complete EPG state matrix
+% theta=RF pulse train
+% ESP=echo spacing, eg 10 ms
+% T1=longitudinal relaxation
+% T2=transverse relaxation
+% varargin=optional inputs later, eg kmax
+% kmax=how many EPG states to calculate, eg 'kmax', 20 keep F0-F20, Z0-Z20
 
+function [F0,Fn,Zn,F] = EPG_TSE(theta,ESP,T1,T2,varargin)
+
+% this section checks if I gave extra parameters
 for ii=1:length(varargin)
     
-    % Kmax = this is the maximum EPG 'order' to consider
-    % If this is infinity then don't do any pruning
-    if strcmpi(varargin{ii},'kmax')
+    if strcmpi(varargin{ii},'kmax')  %STRing CoMPare Ignore case which compares 2 strings and is true enters the if statement
         kmax = varargin{ii+1};
     end
-    
-    % Diffusion - structure contains, G, tau, D
+% normally EPG assumes no diffusion, but in reality there is diffusion
+% structure: gradient amplitude( diff.G), gradient duration( diff.tau),
+% diffusion coefficient( diff.D), so if i want diffusion i create all these
+% variables and pass the structure into function
     if strcmpi(varargin{ii},'diff')
         diff = varargin{ii+1};
     end
-    
-    % Zinit - allow the initial state to vary, but only allow the Z0 term
-    % to be different, assume all other terms are zero
+% zinit tells simulator what the initial longirudinal magnetisation should
+% be before the first excitation pulse, by default it assumes fully relaxed
+% tissue 1, but can use another value, particularly important for FLAIR as
+% after the inversion pulse Mz=-1 instead of 1, then during TI it slowly
+% recovers for when the excitation pulse arrives
     if strcmpi(varargin{ii},'zinit')
         zinit=varargin{ii+1};
     end
@@ -53,105 +42,85 @@ for ii=1:length(varargin)
 end
 
 
-%% Calculation is faster when considering only appropriate EPG orders 
 
-np = length(theta); % number of pulses, this includes exciatation
-% if not defined, assume want max
-if ~exist('kmax','var')
-    kmax = 2*(np - 1);  % kmax at last echo time, this is twice # refocusing pulses
-end
+np = length(theta); % counts RF pulses
+if ~exist('kmax','var') % if the variable kmax doesn't exist
+    kmax = 2*(np - 1);  % (np-1) because first pulse is excitation, so only np-1 are refocusing pulses which increase EPG order
+end % 2*(np-1) as every refocusing pulse generates new coherence pathways so after n refocusing pulses largest order is 2*n
 
-if isinf(kmax)
-    % this flags that we don't want any pruning of pathways
-    allpathways = true;
-    kmax = 2*(np - 1); % this is maximum value
+if isinf(kmax) % is kmax infinite?
+    allpathways = true; % putting inf in EPG_TSE after 'kmax' is used top calculate evry possible coherence pathway and useful for checking that no signal pathway is discarded
+    kmax = 2*(np - 1); % interpret infinity as use the largest physically possible number of pathways as we need to create matrices and cant create infinity matrices
 else
-    allpathways = false;
+    allpathways = false; % means we are allowed to optimise and later the program will ignoire coherence pathways that are impossible to populate to speed up simulation
 end
 
-%%% Variable pathways
+
+
+
 if allpathways
-    kmax_per_pulse = 2*(1:np);
-    kmax_per_pulse(kmax_per_pulse>kmax)=kmax;
+    kmax_per_pulse = 2*(1:np); % after each RF pulse allow more coherent pathways
+    kmax_per_pulse(kmax_per_pulse>kmax)=kmax; % only select entries where condition kmax_per_pulse>kmax is true so maximum order always <= kmax
 else
-    kmax_per_pulse = 2*[1:ceil(np/2) (floor(np/2)):-1:1]+1;
-    kmax_per_pulse(kmax_per_pulse>kmax)=kmax;
+    kmax_per_pulse = 2*[1:ceil(np/2) (floor(np/2)):-1:1]+1; % ceil=round up, floor=round down, middle -1 is the spet size, so decreses by 1 until reaches 1, modelling exactly the TSE echo train: at first few coherence pathways exist, more RF pulses applied and more pathways created, near middle of the sequence number is the largest and towards the end the pathways have relaxed
+    kmax_per_pulse(kmax_per_pulse>kmax)=kmax; % +1 ensures zero-order coherence is included in allocation
      
     if max(kmax_per_pulse)<kmax
         kmax = max(kmax_per_pulse);
     end
 end
 
-%%% Number of states is 3x(kmax +1) -- +1 for the zero order
-N=3*(kmax+1);
 
-%%
-%%% Sort out RF pulse amplitude and phases
-% split magnitude and phase
-alpha = abs(theta);phi=angle(theta);
-
-% add CPMG phase
-phi(2:end) = phi(2:end) + pi/2;
+N=3*(kmax+1); % +1 accounts for zero-order coherence, every coherence order contains three independent magnetisation components( F+k, F-k, Zk)
+alpha = abs(theta); % how much do i rotate magnetisation?
+phi=angle(theta); % angle() returns phase of a complex number
+% add CPMG phase( technique that measures T2 relaxation times, initil 90
+% followed by train of 180 refocusing pulses 
+phi(2:end) = phi(2:end) + pi/2; % phi(2:end) means modify only refocusing pulses, because excitation pulse establishes the initial transverse magnetisation and refocusing pulses control the scho formation
 
     
-%% Relaxation and shift matrices
+
+S = EPG_shift_matrices(kmax); % create mathematical operation that represents gradient induced dephasing
+S = sparse(S); % sparse matrix stores only non-zero values
+% Relaxation over half the echo spacing, EPG divides echo spacing into 2
+% pieces: RF pulse-half ESP-echo-half ESP-next RF pulse
+E1 = exp(-0.5*ESP/T1); % longitudinal recovery factor
+E2 = exp(-0.5*ESP/T2); % transverse decay 
+E = diag([E2 E2 E1]); % creates relaxation matrix
+b = zeros([N 1]); % creates a column vector 
+b(3) = 1-E1; % index 3 is Z0 because only zero-order longitudinal state represents uniform magnetisation
 
 
-%%% Build Shift matrix, S
-S = EPG_shift_matrices(kmax);
-S = sparse(S);
-
-% Relaxation over half the echo spacing
-E1 = exp(-0.5*ESP/T1);
-E2 = exp(-0.5*ESP/T2);
-E = diag([E2 E2 E1]);
-
-%%% regrowth
-b = zeros([N 1]);
-b(3) = 1-E1;%<--- just applies to Z0
-
-%%% Add in diffusion at this point 
-if exist('diff','var')
-    E = E_diff(E,diff,kmax,N);
+if exist('diff','var') % did user provide diffusion parameters?
+    E = E_diff(E,diff,kmax,N); % takes relaxation matrix E and modifies it with diffusion
 else
     % If no diffusion, E is the same for all EPG orders
-    E = spdiags(repmat([E2 E2 E1],[1 kmax+1])',0,N,N);
+    E = spdiags(repmat([E2 E2 E1],[1 kmax+1])',0,N,N); % repmat repeats calculation and , makes it a column and spdiags puts values on diagonal creating a specific matrix
 end
     
+SE=S*E; % first E decays magnetization then S shifts coherence so SE combines relaxation and gradient dephasing
+SE=sparse(SE); % only store non zero values
+T = zeros(N,N); % creates empty matrix
+T = sparse(T); % most elements are zero so convert to sparse
 
-%%% Composite relax-shift
-SE=S*E;
-SE=sparse(SE);
-
-%%% Pre-allocate RF matrix
-T = zeros(N,N);
-T = sparse(T);
-
-% store the indices of the top 3x3 corner, this helps build_T
-i1 = [];
-for ii=1:3
-    i1 = cat(2,i1,sub2ind(size(T),1:3,ii*ones(1,3)));
+i1 = []; % cretaes empty vector
+for ii=1:3 % loops 3 times as EPG order has 3 states 
+    i1 = cat(2,i1,sub2ind(size(T),1:3,ii*ones(1,3))); % where are the first 3by3 blocks located?; sub2ind converts (row,column) into (single matrix index)
 end
 
 
-
-%% F matrix - records the state at each echo time
-F = zeros([N np-1]); % there are np-1 echoes because of excitation pulse
-
-%%% Initial State - can be specified by user
-FF = zeros([N 1]);
-if ~exist('zinit','var')
-    FF(3)=1;
+F = zeros([N np-1]); % F stores snapshots of magnetisation at every echo
+FF = zeros([N 1]); % FF is current magnetisation state changing continuosly
+if ~exist('zinit','var') % is there an initial longitudinal magnetisation?
+    FF(3)=1; % FF(3) means Z0 and 1 means normalized magnetization
 else
-    FF(3)=zinit;
+    FF(3)=zinit; % instead of assuming Mz=1, start from whatever value I provide
 end
     
-
-%% Now handle excitation 
-
-A = RF_rot(alpha(1),phi(1));
-kidx = 1:3;
-FF(kidx) = A*FF(kidx); %<---- state straight after excitation, zero order only
+%now simulation actually applies first RF pulse
+A = RF_rot(alpha(1),phi(1)); %creates RF rotation matrix for first pulse
+kidx = 1:3; % defines which entries of the state vector will be affected
+FF(kidx) = A*FF(kidx); % RF rotation matrix A rotates this magnetisation
 
 
 %%% Now simulate the dephase gradient & evolution, half the readout
