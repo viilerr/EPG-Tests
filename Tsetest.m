@@ -1,4 +1,5 @@
-
+clear
+clc
 addpath(genpath('EPGX_functions'))
 
 % simulates TSE by tracking how magnetisation moves through different states
@@ -38,6 +39,10 @@ for ii=1:length(varargin)
     if strcmpi(varargin{ii},'zinit')
         zinit=varargin{ii+1};
     end
+% adding TI for FLAIR sequence
+    if strcmpi(varargin{ii},'TI')
+    TI = varargin{ii+1};
+end
     
 end
 
@@ -110,72 +115,77 @@ end
 
 
 F = zeros([N np-1]); % F stores snapshots of magnetisation at every echo
+Mz_init = 1; % default fully relaxed magnetization
+if exist('TI','var') % calculate longitudinal magnetisation after inversion recovery(FLAIR)
+    Mz_init = 1 - 2*exp(-TI/T1);
+end
 FF = zeros([N 1]); % FF is current magnetisation state changing continuosly
 if ~exist('zinit','var') % is there an initial longitudinal magnetisation?
-    FF(3)=1; % FF(3) means Z0 and 1 means normalized magnetization
+    FF(3)=zinit; % FF(3) means Z0(longitudinal magnetization immediately before excitation) 
 else
-    FF(3)=zinit; % instead of assuming Mz=1, start from whatever value I provide
+    FF(3)=Mz_init; % instead of assuming Mz=1, start from whatever value I provide
 end
     
-%now simulation actually applies first RF pulse
+% now simulation actually applies first RF pulse
 A = RF_rot(alpha(1),phi(1)); %creates RF rotation matrix for first pulse
 kidx = 1:3; % defines which entries of the state vector will be affected
 FF(kidx) = A*FF(kidx); % RF rotation matrix A rotates this magnetisation
 
 
-%%% Now simulate the dephase gradient & evolution, half the readout
-kidx=1:6;
-FF(kidx) = SE(kidx,kidx)*FF(kidx)+b(kidx);
+%now simulate the dephase gradient & evolution, half the readout.
+%Immediately after excitation spins are approximately in phase
+%corresponding to F0, the observable signal. Now when gradient is applied
+%magnetic field is no longer identical everywhere and spins have dephased,
+%moving magnetisation from F0 towards F1, etc. During evolution 3 things
+%occur simltaneously: T2 decay, T1 recovery, gradient dephasing changing
+%coherence orders. Matrix SE cantains all 3 together. The simulator divides
+%each echo spacing into 2 equal parts allowing echo to oocur exactly in the
+%middle, that's why half the readout.
+kidx=1:6; % six entries: F0, F0*, Z0, F1, F-1*, Z1. Include F1 and Z1 as immediately after excitation first gradient cretaes first-order coherence
+FF(kidx) = SE(kidx,kidx)*FF(kidx)+b(kidx); % FF(kidx)=replace current magnetisation, SE(kidx,kidx)=contains T2 decay, T1 relaxation, gradient shifts, kidx,kidx means take only upper left 6x6 of the matrix
+%*FF(kidx) means allow the magnetisation to evolve, +b(kidx) adds
+%longtidunal regrowth. Physically this line means take the current
+%magnetisation, let it undergo T1 recovery, T2 decay and gradient
+%dephasing for half an echo spacing, then store the updated magnetisation.
 
-
-%% Now simulate the refocusing pulses
-
-for jj=2:np 
-    A = RF_rot(alpha(jj),phi(jj));
-    build_T(A);%<- replicate A to make large T matrix
-    
-    % variable maximum EPG order - accelerate calculation
-    kidx = 1:3*kmax_per_pulse(jj);
-    
-    % Apply RF pulse to current state
-    FF(kidx)=T(kidx,kidx)*FF(kidx);
-
-    % Now evolve for half echo spacing, store this as the echo
-    F(kidx,jj-1) = SE(kidx,kidx)*FF(kidx)+b(kidx);
-    % Deal with complex conjugate after shift
-    F(1,jj-1)=conj(F(1,jj-1)); %<---- F0 comes from F-1 so conjugate
+%now simulate the refocusing pulses
+for jj=2:np % pulse starts at 2
+    A = RF_rot(alpha(jj),phi(jj)); % every iteration the code builds RF rotation matrix for the particular pulse 
+    build_T(A); % replicate A to make large T matrix
+    kidx = 1:3*kmax_per_pulse(jj); % how many coherence orders could physically exist after this particular pulse
+    FF(kidx)=T(kidx,kidx)*FF(kidx); % application of refocsing RF pulse 
+    F(kidx,jj-1) = SE(kidx,kidx)*FF(kidx)+b(kidx); % F=snapshots at echo times, here again T2 decay, T   recovery, gradient evolution, coherence shifting are stored in SE
+    F(1,jj-1)=conj(F(1,jj-1)); % 1 is first observable signal so F0, F0 comes from F-1 so have to take conjugate
     
     if jj==np
-        break
+        break % so if there is no next RF pulse after final echo no need to evolve further to save computational time
     end
     
-    % Finally, evolve again up to next RF pulse
-    FF(kidx) = SE(kidx,kidx)*F(kidx,jj-1)+b(kidx);
-    FF(1)=conj(FF(1)); %<---- F0 comes from F-1 so conjugate 
+    FF(kidx) = SE(kidx,kidx)*F(kidx,jj-1)+b(kidx); % *F instead of FF as the echo has just been recorded so need to start evolving from echo to next RF pulse
+    FF(1)=conj(FF(1)); % F0 comes from F-1 so conjugate 
     
 end
 
-%%% Return signal
-F0 = F(1,:)*1i;
-
-%%% Construct Fn and Zn
-idx=[fliplr(5:3:size(F,1)) 1 4:3:size(F,1)]; 
-kvals = -kmax:kmax;
-%%% Remove the lowest two negative states since these are never populated
-%%% at echo time
+%produce the quantity MRI scanner actually easures as entire TSE sequence
+%has been simulated, RF pulse applied, echo has been generated, EPG state
+%has evolved
+F0 = F(1,:)*1i; % echo train, multiply by 1i as a phase convention
+idx=[fliplr(5:3:size(F,1)) 1 4:3:size(F,1)]; % this line creates correct ordering for plotting
+kvals = -kmax:kmax; % cretaes labels for each coherent order
 idx(1:2)=[];
-kvals(1:2)=[];
-
-%%% Now reorder
-Fn = F(idx,:);
-%%% Conjugate
-Fn(kvals<0,:)=conj(Fn(kvals<0,:));
-
-%%% Similar for Zn
-Zn = F(3:3:end,:);
+kvals(1:2)=[]; % remove lowest 2 negative states since they are never populated
 
 
-    %%% NORMAL EPG transition matrix as per Weigel et al JMR 2010 276-285
+Fn = F(idx,:); % creates the final transverse-state matrix
+Fn(kvals<0,:)=conj(Fn(kvals<0,:)); % negative coherence pathways must be conjugated
+Zn = F(3:3:end,:); % extracts all longitudinal states without reordering
+
+
+% defining 2 helper functions RF_rot and build_T. RF_rot computes 3x3
+% rotation matrix for a pulse with flip angle a and phase p. build_T takes
+% the small 3x3 matrix A from RF_rot and copies it along the diagonal of
+% the large NxN matrix T, so that same RF rotation is applied independently
+% to every coherence order
     function Tap = RF_rot(a,p)
         Tap = zeros([3 3]);
         Tap(1) = cos(a/2).^2;
